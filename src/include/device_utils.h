@@ -3,26 +3,34 @@
 
 
 #define N 9
-#define SUB 3
-#define BOARD_SIZE 81
-#define MAX_BFS_BOARDS 40000
-#define NUM_BLOCKS 512
-#define NUM_THREADS 256
+#define SIZE (N*N)
+#define SQRT_N ((int)sqrt(N))
+#define MAX_BFS_BOARDS 50000
 
 
 
-void cuda_sudoku_backtrack(int* boards,
-    int num_boards,
-    int* empty_spaces,
-    int* empty_count,
+
+void cuda_sudoku_backtrack(
+    int num_blocks,
+    int num_threads,
+    int* boards,
+    int numBoards,
+    int* emptySpaces,
+    int* emptyCount,
     int* finished,
-    int* solution);
+    int* solved
+);
 
-void cuda_sudoku_BFS(int* old_boards,
-    int* new_boards,
-    int old_count,
-    int* new_count,
-    int* empty_spaces,
-    int* empty_count);
+float cuda_sudoku_BFS(
+    int num_blocks,
+    int num_threads,
+    int* oldBoards,
+    int* newBoards,
+    int oldCount,
+    int* newCount,
+    int* emptySpaces,
+    int* emptyCount
+);
+
 
 #endif

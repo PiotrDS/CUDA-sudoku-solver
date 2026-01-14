@@ -64,151 +64,184 @@ bool valid_board(const int* board, int changed_idx) {
 __global__
 void sudoku_backtrack(
     int* boards,
-    int numBoards,
-    int* emptySpaces,
-    int* emptyCount,
+    int num_boards,
+    int* empty_spaces,
+    int* empty_count,
     int* finished,
-    int* solution) {
+    int* solved
+) {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    if (tid >= num_boards) return;
+    if (atomicAdd(finished, 0)) return;
 
-    int g_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int* board = boards + tid * SIZE;
+    int* empties = empty_spaces + tid * SIZE;
+    int total = empty_count[tid];
 
-    while (g_idx < numBoards && atomicAdd(finished, 0) == 0) {
+    int idx = 0;
+    // fill empty cells
+    while (idx >= 0 && idx < total && !atomicAdd(finished, 0)) {
+        int pos = empties[idx];
+        int& cell = board[pos];
+        cell++;
 
-        int* board = boards + g_idx * BOARD_SIZE;
-        int* empties = emptySpaces + g_idx * BOARD_SIZE;
-        int total = emptyCount[g_idx];
-
-        int idx = 0;
-
-        while (idx >= 0 && idx < total) {
-
-            int pos = empties[idx];
-            int& cell = board[pos];
-
-            cell++;
-
-            if (cell <= 9 && valid_board(board, pos)) {
-                idx++;
-            }
-            else {
-                if (cell >= 9) {
-                    cell = 0;
-                    idx--;
-                }
-            }
+        if (cell <= 9 && valid_board(board, pos)) {
+            idx++;
         }
-
-        if (idx == total) {
-            if (atomicCAS(finished, 0, 1) == 0) {
-                for (int i = 0; i < BOARD_SIZE; i++)
-                    solution[i] = board[i];
-            }
-            return;
+        else if (cell >= 9) {
+            cell = 0;
+            idx--;
         }
+    }
 
-        g_idx += blockDim.x * gridDim.x;
+    if (idx == total) {
+        if (atomicCAS(finished, 0, 1) == 0) {
+            for (int i = 0; i < SIZE; i++)
+                solved[i] = board[i];
+        }
     }
 }
 
 
-// =======================================================
-// BFS KERNEL (GENERATE BOARDS)
-// =======================================================
-
 __global__
 void sudoku_BFS(
-    int* oldBoards,
-    int* newBoards,
-    int oldCount,
-    int* newCount,
-    int* emptySpaces,
-    int* emptyCount) {
+    const int* old_boards,
+    int* new_boards,
+    int old_count,
+    int* new_count,
+    int* empty_spaces,
+    int* empty_count
+) {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    if (tid >= old_count) return;
 
-    int g_idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (g_idx >= oldCount) return;
+    const int* board = old_boards + tid * SIZE;
 
-    int* board = oldBoards + g_idx * BOARD_SIZE;
-
-    // find first empty cell
+    // find first empty
     int pos = -1;
-    for (int i = 0; i < BOARD_SIZE; i++) {
+    for (int i = 0; i < SIZE; i++) {
         if (board[i] == 0) {
             pos = i;
             break;
         }
     }
-    if (pos == -1) return;
+    if (pos < 0) return;
 
+    // build constraint mask
+    uint16_t mask = 0;
     int r = pos / 9;
     int c = pos % 9;
 
-    uint16_t mask = 0;
-
-    // check row
     for (int i = 0; i < 9; i++) {
-        int v = board[r * 9 + i];
-        if (v) mask |= 1 << (v - 1);
+        int x = board[r * 9 + i];
+        if (x) mask |= 1 << (x - 1);
+        x = board[i * 9 + c];
+        if (x) mask |= 1 << (x - 1);
     }
 
-    // check column
-    for (int i = 0; i < 9; i++) {
-        int v = board[i * 9 + c];
-        if (v) mask |= 1 << (v - 1);
-    }
-
-    // check box
     int br = (r / 3) * 3;
     int bc = (c / 3) * 3;
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 3; i++)
         for (int j = 0; j < 3; j++) {
-            int v = board[(br + i) * 9 + (bc + j)];
-            if (v) mask |= 1 << (v - 1);
+            int x = board[(br + i) * 9 + (bc + j)];
+            if (x) mask |= 1 << (x - 1);
         }
-    }
 
-    // generate children
+    // generate boards
     for (int d = 1; d <= 9; d++) {
-        if (!(mask & (1 << (d - 1)))) {
+        if (mask & (1 << (d - 1))) continue;
 
-            int idx = atomicAdd(newCount, 1);
-            if (idx >= MAX_BFS_BOARDS) return;
+        int idx = atomicAdd(new_count, 1);
+        if (idx >= MAX_BFS_BOARDS) return;
 
-            int* dst = newBoards + idx * BOARD_SIZE;
+        int* dst = new_boards + idx * SIZE;
 
-            int eidx = 0;
-            for (int i = 0; i < BOARD_SIZE; i++) {
-                dst[i] = board[i];
-                if (board[i] == 0 && i != pos)
-                    emptySpaces[idx * BOARD_SIZE + eidx++] = i;
+        int eidx = 0;
+        for (int i = 0; i < SIZE; i++) {
+            dst[i] = board[i];
+            if (board[i] == 0 && i != pos) {
+                empty_spaces[idx * SIZE + eidx++] = i;
             }
-
-            dst[pos] = d;
-            emptyCount[idx] = eidx;
         }
+
+        dst[pos] = d;
+        empty_count[idx] = eidx;
     }
 }
 
-void cuda_sudoku_backtrack(int* boards,
+void cuda_sudoku_backtrack(
+    int num_blocks,
+    int num_threads,
+    int* boards,
     int num_boards,
     int* empty_spaces,
     int* empty_count,
     int* finished,
     int* solution) {
 
-    sudoku_backtrack << <NUM_BLOCKS, NUM_THREADS >> > (boards, num_boards, empty_spaces, empty_count, finished, solution);
+    // Record times 
+    cudaEvent_t start_total, stop_total;
+    cudaEventCreate(&start_total);
+    cudaEventCreate(&stop_total);
+
+    float ms_total = 0.0f;
+
+    // start total timer
+    cudaEventRecord(start_total);
+
+    sudoku_backtrack << <num_blocks, num_threads >> > (boards, num_boards, empty_spaces, empty_count, finished, solution);
+
+    cudaEventRecord(stop_total);
+    cudaEventSynchronize(stop_total);
+
+    cudaEventElapsedTime(&ms_total, start_total, stop_total);
+
+    //print results
+
+    printf("\n===== GPU BACKTRACKING TIMING =====\n");
+    printf("Total:                   %.3f ms\n", ms_total);
+    printf("=========================\n\n");
+
+
+    //clear events
+    cudaEventDestroy(start_total);
+    cudaEventDestroy(stop_total);
 
 }
 
-void okej(int* old_boards,
+float cuda_sudoku_BFS(
+    int num_blocks,
+    int num_threads,
+    int* old_boards,
     int* new_boards,
     int old_count,
     int* new_count,
     int* empty_spaces,
     int* empty_count) {
 
-    sudoku_BFS << <NUM_BLOCKS, NUM_THREADS >> > (old_boards, new_boards, old_count, new_count, empty_spaces, empty_count);
+    // Record times 
+    cudaEvent_t start_total, stop_total;
+    cudaEventCreate(&start_total);
+    cudaEventCreate(&stop_total);
+
+    float ms_total = 0.0f;
+
+    // start total timer
+    cudaEventRecord(start_total);
+
+    sudoku_BFS << <num_blocks, num_threads >> > (old_boards, new_boards, old_count, new_count, empty_spaces, empty_count);
+
+    cudaEventRecord(stop_total);
+    cudaEventSynchronize(stop_total);
+
+    cudaEventElapsedTime(&ms_total, start_total, stop_total);
 
 
+    //clear events
+    cudaEventDestroy(start_total);
+    cudaEventDestroy(stop_total);
+
+    return ms_total;
 }
 
 

@@ -5,7 +5,6 @@
 #define N 9
 #define SIZE (N*N)
 #define SQRT_N ((int)sqrt(N))
-#define MAX_BFS_BOARDS 40000
 
 bool load_sudoku(const char* filename,
 	int* board);
