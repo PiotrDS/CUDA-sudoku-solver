@@ -49,7 +49,7 @@ int main(int argc, char** argv) {
                 "  --d \t Depth of BFS search (int, default: 18)\n"
                 "  --nb \t Number of blocks (int, default: 512)\n"
                 "  --nt \t Number of threads (int, default: 256)\n"
-                "  --gpu Wheter to use gpu (gpu=1) or cpu (gpu=0) (int, default: 1)\n"
+                "  --gpu \t Wheter to use gpu (gpu=1) or cpu (gpu=0) (int, default: 1)\n"
 
             );
             return 0;
