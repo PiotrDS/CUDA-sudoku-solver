@@ -41,10 +41,10 @@ sudoku_solver.exe --p <path to sudoku table>
 
 ### Optional arguments
 
-*  `--d`: Depth of BFS search (int, default: 18)"
-*   `-nb`: Number of blocks (int, default: 512)"
-*  `--nt`: Number of threads (int, default: 256)"
-*  `--gpu`: Wheter to use gpu (gpu=1) or cpu (gpu=0) (int, default: 1)"
+*  `--d`: Depth of BFS search (int, default: 18)
+*   `-nb`: Number of blocks (int, default: 512)
+*  `--nt`: Number of threads (int, default: 256)
+*  `--gpu`: Wheter to use gpu (gpu=1) or cpu (gpu=0) (int, default: 1)
 
 ### Example
 
@@ -65,9 +65,4 @@ sudoku_solver.exe --p <path to sudoku table> --d 15 --nb 256 --nt 128 --gpu 0
 ## Output
 
 * Solver sudoku printed in console
-
-  * `input_data.csv` : original data
-  * `centroids.csv` : centroid coordinates
-  * `labels.csv` : cluster assignments
-
 ---
