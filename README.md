@@ -64,5 +64,5 @@ sudoku_solver.exe --p <path to sudoku table> --d 15 --nb 256 --nt 128 --gpu 0
 
 ## Output
 
-* Solver sudoku printed in console
+* Solved sudoku table printed in console
 ---
